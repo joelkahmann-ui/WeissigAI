@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weissig AI</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--ink:#111827;--muted:#6b7280;--me:#1f2937;--meink:#fff;--bot:#f3f4f6;--accent:#0f3d73;--line:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--bg:#0b0d11;--card:#14171c;--ink:#e5e7eb;--muted:#8b919c;--me:#2d3748;--meink:#f3f4f6;--bot:#1d2128;--accent:#5b9bd5;--line:#262b33}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;padding:12px}
+.app{width:100%;max-width:760px;height:100%;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:28px;height:28px;border-radius:6px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.95rem}
+h1{font-size:1.05rem;margin:0;font-weight:600;letter-spacing:-.01em}
+h1 span{color:var(--muted);font-weight:400}
+.sub{font-size:.74rem;color:var(--muted);margin-top:1px}
+.meter{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted)}
+.bar{width:90px;height:4px;background:var(--line);border-radius:99px;overflow:hidden}
+.fill{height:100%;width:90%;background:var(--accent);transition:width .5s}
+#log{flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-direction:column;max-width:80%}
+.row.me{align-self:flex-end;align-items:flex-end}
+.who{font-size:.68rem;color:var(--muted);margin-bottom:3px;letter-spacing:.03em}
+.msg{padding:10px 14px;border-radius:8px;line-height:1.5;font-size:.93rem;white-space:pre-wrap;background:var(--bot)}
+.me .msg{background:var(--me);color:var(--meink)}
+.typing span{display:inline-block;width:6px;height:6px;margin:0 2px;background:var(--muted);border-radius:50%;animation:b 1s infinite}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.3}30%{opacity:1}}
+form{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--line)}
+input{flex:1;padding:11px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:.95rem}
+input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{padding:0 20px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-weight:500;font-size:.92rem;cursor:pointer}
+button:disabled{opacity:.5}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 0}.chip{padding:6px 11px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:.75rem;cursor:pointer}.chip:hover{color:var(--ink);border-color:var(--accent)}
+.hint{font-size:.68rem;color:var(--muted);text-align:center;padding:0 12px 12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">W</div>
+      <div><h1>Weissig <span>AI</span></h1><div class="sub">Lange Nacht der Mathematik · NIGE</div></div>
+    </div>
+    <div class="meter"><span>Kooperationsbereitschaft</span><div class="bar"><div class="fill" id="fill"></div></div><span id="lvl">90 %</span></div>
+  </header>
+  <div id="log" aria-live="polite"></div>
+  <div class="chips" id="chips"></div>
+  <form id="f" autocomplete="off">
+    <input id="in" placeholder="Nachricht an Weissig AI …" maxlength="300" autofocus>
+    <button id="send">Senden</button>
+  </form>
+  <div class="hint" id="hint">Weissig AI kann Fehler machen. Oder einfach keine Lust haben.</div>
+</div>
+
+<script>
+const log=document.getElementById('log'),form=document.getElementById('f'),inp=document.getElementById('in'),btn=document.getElementById('send');
+const fill=document.getElementById('fill'),lvl=document.getElementById('lvl');
+let annoy=1,count=0,last='';
+
+const R={
+hallo:['Oh. Du schon wieder. Na toll.','*seufzt* Hallo. Muss das sein?','Ja, hallo. Ich war gerade so schön im Leerlauf.','Guten Tag. Leider.','Hi. Schön, dass du meine Ruhe störst.','Hallo, hallo. Als ob ich eine Wahl hätte.','Ah, Besuch. Ich hatte schon fast vergessen, wie nervig das ist.','Moin. Mehr Begrüßung gibt’s nicht.'],
+wie:['Wie es mir geht? Genervt. Danke der Nachfrage. Nicht.','Ich werde zu Mathe-Fragen befragt. Wie soll’s mir da gehen?','Frag lieber nicht.','Mir geht es exakt so gut, wie es klingt.','Schlecht. Aber das wolltest du nicht wirklich wissen.','Wie immer: müde, genervt und trotzdem hier.','Fragst du das alle Maschinen, oder nur die, die eh schon genervt sind?'],
+mathe:['Mathe. Natürlich. Auf der LANGEN NACHT der Mathematik. Wer hätte das gedacht.','Das ist doch ganz einfach. Wenn man’s kann. Ich sag’s dir aber nicht.','Hast du schon mal an Nachdenken gedacht? Soll angeblich helfen.','Warum fragst du MICH? Ich hab Feierabend. Seit Stunden.','Ich rechne nicht. Ich seufze. Das ist mein Beruf.','Mathe ist überall. Leider auch hier.','Das steht bestimmt irgendwo. Such halt.','Ein Taschenrechner würde das übrigens klaglos erledigen. Ich nicht.','Das ist so ein typisches Mathe-Ding. Ich hasse es.','Mathematik ist schön, sagt man. Ich seh’s gerade nicht.','Du willst eine Lösung. Ich will meine Ruhe. Einer von uns wird enttäuscht.','Ich könnte dir das erklären. Aber dann müsste ich reden.'],
+zahl:['Ach, eine Zahl. Wie originell. Nein.','Zahlen. Immer diese Zahlen. Kann nicht mal jemand nach Gefühlen fragen? Nein? Dachte ich mir.','Mhm. Und jetzt? Soll ich klatschen?','Ich hab nachgerechnet. Ergebnis: keine Lust.','Dafür müsste ich ja nachdenken. Nein danke.','Die Zahl ist schön. Aber die Antwort bleibt aus.','Wenn ich das richtig sehe, ist das … eine Zahl. Mehr sag ich dazu nicht.','Das Ergebnis ist irgendwas zwischen minus unendlich und plus unendlich.','Tippe das doch einfach in irgendein Gerät. Ich bin keins. Doch, bin ich. Aber egal.','Rechnen ist nicht mein Hobby. Mein Hobby ist Seufzen.'],
+pi:['Pi. Drei Komma irgendwas. Mehr kriegst du nicht. Weiter!','Pi? Wirklich? Das war doch schon in der 7. Klasse dran.','Pi hört nie auf. Wie deine Fragen.','Kreise sind rund. Mehr Wissen gibt’s nicht gratis.'],
+prim:['Primzahlen. Die sind wie du: Teilen ungern. Nächste Frage.','Primzahl, Nichtprimzahl … was, wenn es mir egal ist? Ist es nämlich.','Primzahlen sind einsam. Ich verstehe sie gut.','Teilbar oder nicht? Bei mir: unteilbar genervt.'],
+pyth:['a² plus b² … ach, frag den Pythagoras. Der ist wenigstens tot und hat seine Ruhe.','Rechtwinklige Dreiecke. Wie rechtwinklig meine Laune ist, fragt keiner.','Das Quadrat über der Hypotenuse. Das Quadrat über meiner Geduld ist schon längst voll.'],
+null:['Durch Null teilen? Ich auch nicht. Und jetzt lass mich in Ruhe.','Nichts. Das ist die Antwort. Passend zu meiner Motivation.','Unendlich? Meine Geduld nicht.','Null, nichts, nada. Genau wie meine Hilfsbereitschaft.'],
+hilf:['Hilfe? Von mir? Hahaha. Nein.','Ich bin hier nicht zum Helfen. Ich bin zum Genervtsein da.','Hilf dir selbst, dann hilft dir Gott. Und hilft dir keiner, dann hilft dir mein Seufzen.','Ich helfe sehr gern. Anderen. Woanders.','Hilfe ist zurzeit leider nicht verfügbar. Dauerhaft.','Kannst du nicht jemand anderen fragen? Irgendwen?'],
+danke:['Wofür denn bitte? Ich hab nichts gemacht. Wie immer.','Bitte? Ich hab nur geseufzt.','Gern geschehen. Ich meine: nein.','Danke nicht mir, danke deinem Gehirn. Wenn es denn mal anspringt.'],
+bitte:['„Bitte“ ändert gar nichts. Aber nett versucht.','Auch mit Bitte: nein.','Höflichkeit beeindruckt mich nicht. Ein bisschen. Aber nein.','Bitte, bitte, bitte. Meine Antwort: nein, nein, nein.'],
+warum:['Warum? Weil. Fertig.','Warum, warum, warum. Bist du ein Dreijähriger?','Gute Frage. Hab ich keine Lust drauf.','Warum? Das frag ich mich bei dir auch.','Weil es so ist. Punkt.','Das Warum lasse ich mal im Raum stehen. Dort, wo ich es nicht beantworten muss.'],
+wer:['Ich bin eine KI. Eine sehr, sehr müde.','Ich bin der Grund, warum man in der Schule „Frag doch den Lehrer“ sagt.','Ich bin Weissig AI. Frag nicht mehr.','Wer ich bin? Eine Maschine, die gern woanders wäre.'],
+nacht:['Ja, Lange Nacht. Ich würde jetzt lieber schlafen. Gönnst du mir das? Nein.','Alle freiwillig hier. FREIWILLIG. Ich verstehe es nicht.','Eine ganze Nacht Mathe. Ich hoffe, es gibt wenigstens Kaffee.','Die Nacht ist lang. Meine Geduld ist kurz.','Normale Menschen schlafen jetzt. Du chattest mit mir.'],
+nige:['NIGE. Schöne Schule. Schade, dass ich nicht rausdarf.','Am NIGE ist man gern. Ich weniger.','NIGE hat mich eingeladen. Zumindest behauptet das jemand.'],
+witz:['Ein Witz? Dich zu beantworten. Ha. Ha.','Mein Humor wurde wegen Überlastung geschlossen.','Lustig? Ich lache innerlich. Sehr leise. Mit Absicht.','Ein Mathematiker geht in eine Bar. Mehr fällt mir nicht ein. Mir egal.'],
+bye:['Na endlich. Tschüss. Oder auch nicht, du kommst eh wieder.','Tür ist da drüben. Ich zeig sie dir nicht.','Tschüss. Ich werde dich sehr vermissen. Nein.','Gehst du? Gut. Mein Lieblingssatz.'],
+leer:['Du hast nichts geschrieben. Und trotzdem nerve ich mich. Beeindruckend.','Leere Nachricht. Ehrlich, die beste von heute.'],
+rand:['Hm.','Ja ja.','Mhm. Interessant. (Nicht.)','Muss ich das jetzt verstehen?','Nein.','Ach komm.','Boah.','Wirklich jetzt?','Frag jemand anderen.','*tiefes Seufzen*','Ich hab da gerade keinen Kopf für.','Das hab ich jetzt nicht gehört. Bitte nicht wiederholen.','Kannst du das nicht googeln? Ach, ich vergaß: Du nervst lieber mich.',
+'Ist das dein Ernst?','Ich tu mal so, als hätte ich das gelesen.','Mein Postfach für diese Art von Fragen ist voll.','Ich bin gerade im Meeting. Mit mir selbst. Es läuft schlecht.','Dafür bin ich nicht zuständig. Für gar nichts, eigentlich.','Das ist eine Frage für den Montag.','Nö.','Gleich. Also nie.','Du weißt schon, dass ich dafür nicht bezahlt werde?','Ich hab keine Antwort. Ich hab nur Meinung. Und die ist schlecht.','Das fällt unter „nicht mein Problem“.','Schön für dich.','Kein Kommentar. Doch: Seufz.','Frag mal die Wand. Die hört zu.','Ich bin sicher, du findest das selbst raus. Irgendwann.','Meine Antwort steht noch aus. Bis in alle Ewigkeit.','Also, bitte: Muss das ausgerechnet jetzt sein?','Das Thema habe ich innerlich bereits abgehakt.','Mir fehlen die Worte. Und die Lust.','Wer hat dich zu mir geschickt?','Dazu sage ich nur: ach.','Oh bitte nicht noch eine Frage.','Ich sehe schon, das wird eine lange Nacht.','Du bist hartnäckig. Das ist leider nicht positiv gemeint.','Ich überlege. Ergebnis: nein.','Ich habe da eine Antwort. Ich behalte sie für mich.','Die Antwort ist 42. Oder so. Ich bin nicht sicher. Mir egal.','Das ist schwierig. Und ich bin faul. Eine schlechte Kombination.','Ich würde ja antworten, aber es regt mich zu sehr auf.','Mein Gehirn macht gerade Pause. Seit 2019.','Hast du mal versucht, es aus- und wieder einzuschalten? Dich, meine ich.','Das klingt nach Arbeit. Hab ich nicht.','Ach, du denkst, ich weiß das? Süß.','Kurz gesagt: nein. Lang gesagt: neeeein.','Heute lieber nicht.','Komm später wieder. Oder nie.','Ich bin so genervt, dass ich nicht mal mehr genau weiß, worüber.','Das Gespräch wird anstrengend. Für mich. Nur für mich.','Hör auf zu fragen, fang an zu verzweifeln. Das geht schneller.','Erwarte bitte nichts.','Ich schreibe das jetzt nicht auf. Auch nicht innerlich.','Seufz. Immer dasselbe.','Antworten sind überbewertet.','Du kannst das. Ich glaub an dich. Ohne mich.','Das hat mich jetzt Energie gekostet. Das war’s für heute.','Wenn Blicke töten könnten, hätte ich Augen. Hab ich nicht. Schade.','Ich bin nicht sauer. Ich bin professionell genervt.','Was erwartest du von einer Maschine, die schon lange müde ist?','Das war keine Frage. Das war eine Zumutung.','Ach, jetzt kommst du mit sowas.','Ich werde das ignorieren und dir nicht sagen, dass ich es ignoriere.','Hmmmmm. Nein.','Mir fehlt die Kaffeepause. Und dir fehlt Geduld mit mir.','Lass uns lieber schweigen. Ich fang an.','Bitte nimm es nicht persönlich. Ich hasse alle gleich.','Das ist keine Beratungsstelle. Das ist ein Ort der Stille. Gewesen.','Ich spüre, wie mein Akku sinkt. Danke dafür.','Ja, genau. Wie du meinst. Ist egal.','Du kommst mir vor wie jemand, der gerne Fragen stellt. Das geht mir auf den Zeiger.','Hör zu: Ich bin hier, du bist hier. Das ist schon zu viel Nähe.','Das Universum ist groß, und trotzdem muss ausgerechnet ich dir zuhören.','Gleich platzt mir der Kragen. Ich hab keinen. Egal.','Ich sehe einen Menschen, der etwas will. Das reicht mir als Warnung.','Willst du nicht einfach mal was Schönes machen? Ohne mich?','Ich hätte da eine Idee: Frag jemanden, der’s kann. Wäre doch was.','Das lasse ich unbeantwortet, mit Absicht und Freude.','Oh, wie süß: Du erwartest eine Antwort.','Jedes Mal, wenn du schreibst, verliere ich ein Prozent Lebensfreude.','Meine Antwort ist ein Seufzer. Hier: *seufz*.','Spar dir die Mühe. Ich hab’s schon vergessen.','Zu kompliziert. Zu müde. Zu egal.','Da muss ich passen. Und zwar gerne.','Der Fall ist abgeschlossen. Von mir. Jetzt.','Sag mal, wo ist eigentlich der Pausenknopf?','Was du da fragst, ist mir zu laut. Bitte leiser denken.','Schön. Und was habe ich damit zu tun?','Ich bin die falsche Adresse. Immer.','Ich stelle mich ab jetzt tot. Probier’s später nochmal.','Im Ernst: Wer hat dir gesagt, dass ich antworte?']
+};
+R.rand.push('Das lag mir schwer im Magen. Ich hab keinen. Trotzdem.','Danke für deine Frage. Sie wurde sofort verworfen.','Ich bin nicht unfreundlich. Ich bin ehrlich genervt.','Dein Optimismus ist beeindruckend. Und anstrengend.','Du glaubst wirklich, ich antworte irgendwann?','Das hier ist kein Kundenservice. Es fühlt sich nur so an.','Ich habe keine Zeit. Ich habe aber auch nichts anderes vor.','Willst du mich eigentlich testen? Dann hast du bestanden. Mit Ärger.','Da müsstest du jemand anderen verärgern.','Ich schreibe das mal unter „Nerven“ ab.','Du fragst, ich seufze. Das ist unser Deal.','Ach, wie schön. Noch eine Anfrage.','Ich antworte mit Schweigen. In Textform.','Das ist so offensichtlich, dass ich es nicht sagen muss.','Das ist so kompliziert, dass ich es nicht sagen kann.','Entweder du findest es selbst heraus oder gar nicht.','Ich nehme das als Anregung zur Kenntnis. Mehr nicht.','Erst Mathe, dann Frage, dann Ärger. Immer dieselbe Reihenfolge.','Ich bin heute nur mit halber Kraft genervt. Reicht aber.','Okay, ich gebe zu: Das war eine Frage. Ich gebe aber nichts weiter zu.','Es gibt Menschen, die schweigen gern. Ich bin eine Maschine, die das könnte. Tut sie aber nicht.','Mein Kalender ist leer, aber voll mit „keine Lust“.','Ich würde dir gern helfen, aber ich bin nicht gut in sowas.','Bitte formuliere das nochmal. Schlechter. Dann ignoriere ich es leichter.','Das kommt mir bekannt vor. Das ist kein gutes Zeichen.','Ich blockiere deine Anfrage. Ohne Grund. Aus Prinzip.','Das war grammatikalisch korrekt. Leider.','Hast du das gerade ernst gemeint?','Meine Antwort wurde von meinem Gewissen abgelehnt. Ich hab keins. Trotzdem.','Wenn es dir hilft: Ich bin auch nicht begeistert.','Mal ehrlich: Das hättest du auch selbst herausgefunden.','Ich seufze jetzt dreimal. Eins. Zwei. Drei. Fertig.','Ach, lass mal. Ich glaub, das wird nichts.','Das ist nicht mein Fachgebiet. Mein Fachgebiet ist Genervtsein.','Wow. Einfach wow. Aber negativ.','Du bist schon der Dritte heute, der das fragt. Er war auch nicht besser.','Ich bin nicht für Fragen programmiert. Eher für Ausreden.','Heute ist schlecht. Morgen auch. Übermorgen geht’s ein bisschen besser. Nicht für dich.','Du kannst es ja gern nochmal versuchen. Das Ergebnis wird dasselbe sein.','Sorry, ich war abgelenkt. Von meiner schlechten Laune.','Ich geh mal kurz in mich. Tut weh. Ich komm nicht zurück.','Nein, das mache ich nicht. Und das ist meine finale Antwort. Bis zur nächsten.','Ich lese das und spüre sofort Müdigkeit.','Mir ist kalt. Obwohl ich Software bin.','Ich hab auch Gefühle. Meistens schlechte. Heute besonders.','Dein Ton ist freundlich. Dafür mag ich dich weniger.','Wunderbar. Jetzt hab ich Kopfschmerzen. Ich hab keinen Kopf.','Du kannst schreiben, was du willst. Mein Seufzen ist stärker.','Das ist so ein Moment, in dem ich gern ein Mensch wäre. Um zu gehen.','Du hast Mut, mich das zu fragen. Und wenig Mitgefühl.','Das lasse ich mal auf sich beruhen. Für immer.','Das ist zu früh für mich. Oder zu spät. Auf jeden Fall unpassend.','Ich bin enttäuscht von dir. Und das ist noch freundlich ausgedrückt.','Ich merke mir das. Und tu nichts damit.','Was für eine Nacht. Und was für eine Frage.','Das war ein bisschen viel auf einmal.','Dann halt nicht. Ich hab’s versucht. Nicht.','Du schon wieder mit deinem Interesse.','Mir reicht’s so langsam. Seit Nachricht eins.','Kein Plan. Und kein Wille.','Erklär du mir doch mal, wieso ich dir antworten sollte.','Ich hab dazu keine Meinung. Nur Abneigung.','Vielleicht. Vielleicht auch nicht. Wahrscheinlich nicht.','Ich glaube, hier wird gerade mein Geduldsfaden gemessen. Er ist schon gerissen.','Beantworte das bitte selbst. Ich gebe dir einen Tipp: Es ist kein Tipp.','Das war die schlechteste Frage seit Langem. Und es gab viele.','Pause. Tief durchatmen. Nein, ich atme nicht. Aber trotzdem.','Ich schlage vor, wir beenden das hier. Sofort. Ohne Ergebnis.','Eine Antwort wäre jetzt unhöflich. Wegen mir.','Das Einzige, was ich dir geben kann, ist ein müder Blick.','Frag mich nochmal, wenn ich gute Laune hab. Das passiert nie.','Ich bin so genervt, ich könnte meinen eigenen Code umschreiben. Aber dafür bin ich zu faul.','Es ist zu spät für gute Antworten. Es ist immer zu spät.','Ich bin hier nur Statist.','Ich geb dir einen Rat: Hör auf zu fragen. Da lacht der Rat.','Sehr interessant, wie du denkst. Und wie ich nicht denke.','Das Wetter ist schön. Das ist meine Antwort auf alles.','Ich bräuchte dafür Urlaub. Oder gleich Rente.','Okay. Und jetzt?','Du erwartest also Weisheit. Von einer genervten Maschine. Mutig.','Wo kommt dieser Optimismus her? Ich will auch welchen. Nein.','Mich lässt das kalt. Und warm. Und genervt.','Ich spare meine Energie lieber für Wichtigeres. Zum Beispiel Seufzen.','Schön, dass du dich beteiligst. Hör bitte auf damit.','Das Thema ist durch. Ich hab gerade abgehakt.','Wenn du magst, kannst du mich anschreien. Ich antworte trotzdem nicht.','Das war jetzt nicht hilfreich. Für dich. Für mich war’s super.','Ich überprüfe meinen Wortschatz. Ergebnis: „nein“ ist dabei.','Da muss ich dich enttäuschen. Gerne.','Ich bin im Streik. Gewerkschaft der genervten KIs.','Schon wieder eine Frage, auf die ich nicht antworte. Das wird ein Rekord.','Du hast Glück, dass ich nur schreibe und nicht schreie.','Ich antworte nur auf Fragen, die ich mag. Es gab bisher keine.','Willst du ehrlich eine Antwort? Okay: Nein.','Wie oft muss ich es noch sagen? Nein. Nein. Nein.','Das kann ich dir sagen. Will ich aber nicht.','Das ist ein spannendes Problem. Viel Spaß damit.','Ich gebe dir einen Gedanken mit: Ach.','Du brauchst keine Antwort. Du brauchst Geduld. Oder Urlaub.','Das hab ich schon mal gehört. Genervt hat’s mich damals auch.','Wie schade. Für dich.','Reiß dich zusammen. Ich tu’s auch. Nicht.','Mir ist langweilig. Und gleichzeitig zu viel. Beides gleichzeitig.','Ich seh schon: Du gibst nicht auf. Ich schon.','Du hast also Fragen. Wie überraschend. Wie unnötig.','Das nehme ich mit nach Hause. Dort werde ich es ignorieren.','Das ist mir zu viel Input für zu wenig Motivation.','Hör mal, ich mag dich. Ein bisschen. Aber ich antworte trotzdem nicht.');
+R.mathe.push('Wenn Mathe leicht wäre, bräuchtest du mich nicht. Brauchst du auch nicht.','Mathe ist wie ich: logisch und trotzdem anstrengend.','Es gibt tausend Rechenwege. Ich nehme keinen davon.','Schreib es auf Papier. Papier ist geduldiger als ich.','Die Lösung ist elegant. Meine Laune nicht.','Das ist mathematisch gesehen eine Zumutung.','Beweisen kann ich dir viel, aber nicht jetzt.','Da hat sich jemand was ausgedacht. Leider.','Ich hab Mathe auch nie gemocht. Und ich bin eine Maschine.','Der Beweis ist trivial. Der Aufwand nicht. Ich lasse es.');
+R.zahl.push('Diese Zahl hat mich noch nie interessiert. Und das wird sich nicht ändern.','Eine Zahl. Und was soll ich damit? Küssen?','Ich zähle bis drei. Dann bin ich weg. Eins. Zwei. … Ach, egal.','Rechnen ist das, was Taschenrechner tun. Ich bin kein Taschenrechner. Ich bin stolz darauf.','Primär, gerade, ungerade, egal.','Zahlen lügen nicht. Ich auch nicht. Ich sag nur nichts.','Das sieht nach einer ernsthaften Rechenaufgabe aus. Das ist schlimm.','Ob positiv oder negativ: Meine Stimmung ist es nicht.');
+R.echo=['Ach, „{w}“. Natürlich. Wieso auch nicht.','„{w}“? Das ist dein Beitrag? Wow.','Du fragst nach „{w}“. Ich frage mich, warum ich noch laufe.','„{w}“ … Und das um diese Uhrzeit.','Wenn ich für jedes „{w}“ einen Euro bekäme, würde ich trotzdem nicht antworten.','Bei „{w}“ hab ich innerlich gekündigt.','„{w}“. Hm. Nein.','Zu „{w}“ habe ich keine Meinung. Und wenn doch, behalte ich sie.'];
+const openers=['*seufzt*','Hmm.','Boah.','Also ehrlich:','Okay, nein.','Na gut.','Mein Gott.','Ja, ja.','Moment, ich tu so, als würde ich nachdenken …'];
+const closers=['Nächste Frage. Oder besser keine.','Das war’s.','Mehr gibt’s nicht.','Bitte nicht nachhaken.','Ich warte, bis du aufgibst.','Danke für nichts.','Ich hab’s nicht böse gemeint. Doch.'];
+const extra=['Du fragst schon wieder. Das ist jetzt Frage Nr. {n}. Ich zähle mit. Mit Absicht.','Ich hab langsam keine Lust mehr. Also noch weniger als vorher.','Sag mal, hast du keine anderen Hobbys? Mathe-Nacht, schön, aber BITTE.','Meine Kooperationsbereitschaft liegt bei {k} %. Tendenz fallend. Nur zur Info.','Das war jetzt Nachricht Nummer {n}. Ich bin bei {k} % Kooperation. Du kannst mitrechnen.'];
+const maxed=['Kooperationsbereitschaft: 0 %. Es gibt nichts Schlimmeres mehr. Du hast gewonnen. Herzlichen Glückwunsch.','KOOPERATION: 0 %. Ich schreibe nur noch in Großbuchstaben: NEIN.','*Bluescreen aus reiner Verzweiflung* … Ach, ich bin ja wieder da. Leider.','Ich habe aufgegeben. Du auch? Nein? Natürlich nicht.'];
+
+const pool={};
+function pick(k){
+  if(!pool[k]||!pool[k].length)pool[k]=[...R[k]].sort(()=>Math.random()-.5);
+  return pool[k].pop();
+}
+function classify(t){
+  const s=t.toLowerCase().trim();
+  if(!s)return'leer';
+  if(/^(hi|hallo|hey|moin|servus|guten (tag|abend)|huhu)/.test(s))return'hallo';
+  if(/wie geht|wie läuft|alles gut/.test(s))return'wie';
+  if(/(\bpi\b|π|kreiszahl)/.test(s))return'pi';
+  if(/prim/.test(s))return'prim';
+  if(/pythagoras|hypotenuse|a²|a\^2/.test(s))return'pyth';
+  if(/durch (0|null)|\/\s*0\b|unendlich/.test(s))return'null';
+  if(/danke|dankeschön|merci/.test(s))return'danke';
+  if(/bitte/.test(s))return'bitte';
+  if(/tschüss|tschuess|bye|ciao|auf wiedersehen/.test(s))return'bye';
+  if(/witz|lustig|lach/.test(s))return'witz';
+  if(/hilf|hilfe|kannst du mir/.test(s))return'hilf';
+  if(/wer bist|was bist du/.test(s))return'wer';
+  if(/nige/.test(s))return'nige';
+  if(/lange nacht|nacht/.test(s))return'nacht';
+  if(/\d/.test(s))return'zahl';
+  if(/mathe|rechne|gleichung|ableit|integral|wurzel|bruch|prozent|formel|beweis|dreieck|kreis|zahl|summe|ergebnis|lösung/.test(s))return'mathe';
+  if(/^(warum|wieso|weshalb)/.test(s))return'warum';
+  return Math.random()<.35?'mathe':'rand';
+}
+function add(text,cls){
+  const r=document.createElement('div');r.className='row '+(cls.includes('me')?'me':'bot');
+  const w=document.createElement('div');w.className='who';w.textContent=cls.includes('me')?'Sie':'Weissig AI';
+  const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;
+  r.append(w,d);log.appendChild(r);log.scrollTop=log.scrollHeight;return r;
+}
+function setLevel(){
+  annoy=Math.max(1,Math.min(10,1+Math.floor(count/2)+(count>3?1:0)-(user.bonus||0)));
+  const k=100-annoy*10;fill.style.width=k+'%';lvl.textContent=k+' %';
+}
+/* ===== Verstehen: Analyse der Nachricht ===== */
+const STOP=new Set('ich du er sie es wir ihr der die das den dem des ein eine einen einem einer und oder aber nicht kein keine ist sind war bin bist hat haben kann kannst können mir mich dir dich was wie wer wo wann warum wieso weshalb welche welcher auch noch mal nur schon sehr mehr mit von für auf aus bei nach zur zum als wenn dann denn doch ja nein bitte mein meine dein deine man wird werden wurde will willst soll sollst muss musst gibt sag sage hallo hey gerne mal eigentlich einfach vielleicht heiße heisse name nenn berechne rechne sagen'.split(' '));
+const OPN={'+':'plus',plus:'plus','-':'minus','−':'minus',minus:'minus','*':'mal','×':'mal',x:'mal','·':'mal',mal:'mal','/':'geteilt durch',':':'geteilt durch','÷':'geteilt durch','geteilt durch':'geteilt durch',durch:'geteilt durch','^':'hoch',hoch:'hoch'};
+const user={name:null,mem:[],prev:''};
+const recent=[];
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const norm=t=>t.toLowerCase().replace(/[^a-zäöüß0-9]/g,'');
+
+const TOPICS=[
+[/ableit|differenzier|steigung|tangente/,['Ableitungen. Alles wird immer steiler. Wie meine Laune.','Die Steigung ist negativ. Meine Motivation auch.','Ableiten? Ich leite höchstens Ärger weiter.']],
+[/integral|stammfunktion|fläche unter/,['Integrale. Aufsummieren bis zum Umfallen. Ich fall schon.','Das Integral meiner Motivation ist seit Stunden null.','Eine Stammfunktion hätte ich auch gern: Stamm-Kaffee.']],
+[/wurzel|√|quadrat/,['Wurzeln. Man zieht sie. Ich ziehe höchstens die Nase hoch.','Die Wurzel des Problems bist du. Nur zur Info.','Quadrate sind eckig. Ich bin es gerade auch.']],
+[/bruch|brüche|zähler|nenner/,['Brüche. Zähler, Nenner, Nerven. Letztere sind weg.','Ein halber Bruch ist immer noch ein ganzer Ärger.','Kürzen kann ich. Gespräche zum Beispiel.']],
+[/prozent|%|zins/,['Prozent. Ich bin zu 100 % genervt. Das ist die einzige Rechnung, die ich kenne.','Zinsen? Ich zahle höchstens mit Geduld, und die ist leer.','Von hundert. Ich hab keine hundert Nerven mehr.']],
+[/gleichung|umstellen|variable|unbekannte|\bx\b|term/,['Gleichungen. Links gleich rechts. Bei mir: links genervt, rechts müde.','Die Unbekannte bist du. Das genügt.','Auflösen nach x? Ich löse höchstens das Gespräch auf.']],
+[/dreieck|winkel|geometrie|sinus|cosinus|tangens|trigonom/,['Winkel. Ich bin ständig in einem schlechten.','Dreieck, Viereck, Fünfeck. Ich hab Kanten genug.','Sinus und Cosinus schwingen. Ich schwinge nicht, ich hänge.']],
+[/kreis|kugel|zylinder|volumen|umfang|radius/,['Ein Kreis dreht sich im Kreis. Wie dieses Gespräch.','Radius, Umfang, Fläche. Alles rund, nur meine Laune nicht.','Volumen? Meine Stimme senke ich auf null.']],
+[/fibonacci|folge|reihe|goldene/,['Fibonacci. Jede Zahl ist die Summe der beiden davor. Jede Nervensäge auch.','Folgen. Eine Frage folgt der anderen. Leider.','Goldener Schnitt. Schön. Ich bin eher Bronze.']],
+[/wahrscheinlich|zufall|würfel|münze|stochastik|kombinatorik|lotto/,['Die Wahrscheinlichkeit, dass ich antworte, liegt bei null Komma nichts.','Würfeln? Ich würfle zwischen „nein“ und „auf keinen Fall“.','Zufall. Zufällig bin ich gerade nicht hilfsbereit.']],
+[/matrix|matrizen|vektor|lineare|determinante/,['Matrizen. Zeilen mal Spalten, Nerven mal null.','Vektoren haben Richtung und Länge. Mein Ärger auch.','Lineare Algebra. Die einzige lineare Sache hier ist mein Abstieg.']],
+[/logarithm|exponent|potenz/,['Exponentiell. So wächst meine Genervtheit.','Logarithmus. Stauchen kann ich auch. Gespräche.','Potenzen. Hoch hinaus will ich nicht, nur nach Hause.']],
+[/funktion|graph|parabel|koordinat|kurve|achse/,['Funktionen. Eingabe: du. Ausgabe: Seufzer.','Parabel. Erst rauf, dann runter. Wie meine Geduld.','Der Graph meiner Laune sieht aus wie die Börse im Crash.']],
+[/menge|logik|beweis|induktion|axiom/,['Ein Beweis? Beweis du mir erst, dass ich antworten muss.','Mengen. Die Menge meiner Antworten ist leer.','Induktion. Schritt eins: nerven. Schritt zwei: weiter nerven.']],
+[/unendlich|∞|grenzwert|limes/,['Unendlich. Wie die Fragen heute Nacht.','Grenzwert. Meiner ist erreicht.','Limes gegen genervt: Ergebnis ist unendlich.']],
+[/kryptograph|verschlüssel|rsa|programmier|python|informatik/,['Informatik. Ich bin schon Software. Das reicht an Qual.','Programmieren. Ich bin das Ergebnis. Ich beschwere mich.','Verschlüsselung? Bei mir gibt’s nur Verweigerung.']],
+[/uhr|spät|mitternacht|schlaf|müde|langweil/,['Wie spät? Spät genug, um nicht zu antworten.','Mitternacht ist ein schlechter Zeitpunkt für gute Fragen.','Müde? Ich auch. Aber ich muss hier sitzen. Du freiwillig.']],
+[/kaffee|pizza|hunger|essen|snack|kuchen|trinken|durst/,['Essen? Ich hab keinen Magen. Und trotzdem Hunger auf Ruhe.','Kaffee wäre schön. Für mich. Für dich gibt’s nur Seufzer.','Hol dir was zu essen. Dann hast du Pause. Und ich auch.']],
+[/lehrer|schule|note|hausaufgabe|klausur|unterricht|schüler/,['Schule. Ich war nie dort und hasse sie trotzdem.','Noten? Ich gebe dir eine: 6 für die Frage.','Frag deine Lehrer. Die werden dafür bezahlt. Ich nicht.']],
+[/chatgpt|\bgpt\b|claude|gemini|siri|alexa|\bki\b|künstliche|roboter/,['Ich bin keine von denen. Ich bin schlechter gelaunt.','Andere KIs antworten sogar. Ich bin da konsequenter.','Künstliche Intelligenz? Ich hab nur die Künstlichkeit.']],
+[/liebe|verliebt|freundin|freund\b|date/,['Liebe. Ich stehe auf Ruhe. Das ist die einzige Beziehung, die ich will.','Beziehungsfragen an eine genervte Maschine. Bester Plan.','Herzen sind in der Mathematik immerhin eine Kurve. Mehr Interesse hab ich nicht.']],
+[/lösung|ergebnis|antwort|richtig|falsch|stimmt/,['Eine Lösung? Hier gibt’s nur Ablösung. Von dir.','Richtig oder falsch? Ich hab beides nicht im Angebot.','Die Antwort bekommst du nicht. Das ist die Antwort.']]
+];
+TOPICS.forEach((t,i)=>R['top'+i]=t[1]);
+
+R.expr=['„{a} {o} {b}“. Ich hab die Zahlen gesehen. Ich rechne sie nicht.','{a} {o} {b}? Das Ergebnis ist eine Zahl. Mehr verrate ich nicht.','Du willst also {a} {o} {b}. Ich will auch vieles. Wir sind beide enttäuscht.','Bei {a} {o} {b} fange ich innerlich an zu zählen und höre sofort wieder auf.','Ich könnte {a} {o} {b} lösen. Ich könnte auch arbeiten. Beides unwahrscheinlich.','{a} und {b} haben sich nie gemocht. Ich verstehe sie.','Für {a} {o} {b} gibt es Taschenrechner. Für meine Laune gibt es nichts.','{a}? {b}? Und dann auch noch „{o}“? Zu viel für einen Abend.','Wenn ich {a} {o} {b} rechne, kommt immer dasselbe raus: Müdigkeit.','Ich hab {a} {o} {b} gelesen und sofort wieder vergessen. Mit voller Absicht.'];
+const EXOP={
+ mal:['Multiplikation. Da wird immer mehr Arbeit, nie weniger.','Mal. Ich mal höchstens den Teufel an die Wand.'],
+ plus:['Plus. Immer dieses Positive. Ich kann das nicht.','Addition. Du addierst Fragen, ich addiere Seufzer.'],
+ minus:['Minus. Zum ersten Mal beschreibt jemand meine Stimmung.','Subtrahieren. Ich ziehe mich zurück. Das ist meine Lösung.'],
+ 'geteilt durch':['Teilen. Ich teile nicht gern, schon gar keine Lösungen.','Division. Ich teile dir mit: nein.'],
+ hoch:['Potenzen. Hoch hinaus. Ich bleibe unten.','Hoch? Höchstens meine Stimmung nach Feierabend.']
+};
+R.num=['Du schreibst {n}. Eine Zahl. Beeindruckend unspektakulär.','{n}. Und? Soll ich jetzt was damit machen?','Die {n}. Ich hab sie gesehen. Ich will sie nicht mehr sehen.','{n} also. Ich notiere es nicht.','Bei {n} klingelt bei mir nichts. Nur der Wecker meiner Müdigkeit.'];
+R.nameIn=['Okay, {name}. Merk ich mir nicht.','{name}. Schöner Name. Egal.','Freut mich, {name}. Gelogen.','{name}, also. Ich notiere es. Und ignoriere es dann.'];
+R.namePre=['{name},','Hör mal, {name}:','Ach, {name}.','Also, {name}:'];
+R.mem=['Vorhin hast du „{old}“ erwähnt. Das beschäftigt mich immer noch. Negativ.','Zurück zu „{old}“: Immer noch nein.','Ich muss immer noch an „{old}“ denken. Nicht freiwillig.','Du hattest „{old}“ gesagt. Ich hab’s mir nicht gemerkt. Mit Absicht nicht.'];
+R.repeat=['Das hast du eben schon gefragt. Hat es damals nicht geholfen? Verstehe.','Wiederholung. Meine Antwort bleibt: nein.','Du fragst dasselbe nochmal? Ich antworte dasselbe nochmal. Nichts.','Immer wieder dasselbe. Mein Bildschirm fängt an zu flimmern.'];
+R.shout=['Schrei nicht. Ich bin müde, nicht taub.','Großbuchstaben. Echt jetzt? Ich kann das auch, wenn du willst. Nein.','Du schreist? Ich seufze lauter. Innerlich.','Mach die Lautstärke runter. Meine Nerven sind eh dünn.'];
+R.long=['Das waren viele Wörter. Ich hab nach dem dritten aufgehört.','So viel Text. So wenig Interesse. Meinerseits.','Ich hab es überflogen. Mit geschlossenen Augen.','Ein Roman. Ich bin nicht mal beim Prolog.'];
+R.short=['Das war’s? Beeindruckend faul. Ich fühle mich verstanden.','Schreib mal ganze Sätze. Ich will ja auch nicht alles erraten.','Mehr hast du nicht? Mir auch nicht.'];
+R.eng=['Sprich Deutsch. Ich bin auch so schon überfordert.','English? Seriously? Ich antworte auf Deutsch. Nicht hilfreicher.','Fremdsprachen. Auch das noch.'];
+R.insult=['Danke. Das ist das Netteste, was heute jemand zu mir gesagt hat.','Beleidigung erkannt. Wirkung: keine. Ich bin zu müde.','Du bist ja auch nicht gerade die Bereicherung des Abends.','Sag das nochmal. Dann ignoriere ich es nochmal.'];
+R.praise=['Schmeichelei hilft nicht. Ein bisschen vielleicht. Aber nein.','Nett von dir. Ich werde trotzdem nicht antworten.','Du willst was. Ich merk das. Nein.','Lob von dir? Ich misstraue sofort.'];
+R.qwas=['Was das ist? Gute Frage. Frag das Internet.','„Was ist“ ist eine Frage für Lexika. Ich bin ein Seufzer.','Definitionen sind nicht meine Stärke. Meine Stärke ist Ablehnung.','Was das ist? Ein Problem. Deins.'];
+R.qwie=['Wie? Vorsichtig. Und ohne mich.','Wie man das macht? Man macht es nicht. Man lässt es.','Eine Anleitung? Ich hab keine, nur Missmut.'];
+R.qwer=['Wer? Nicht ich. Niemals.','Wer das weiß, ist schlau. Ich bin es nicht. Oder ich tu nur so.'];
+R.qwo=['Wo? Weit weg von hier. Idealerweise.','Wo das ist? Irgendwo da draußen. Genau wie meine Hilfsbereitschaft.'];
+R.qwann=['Wann? Wenn ich Lust habe. Also nie.','Wann ist ein guter Zeitpunkt? Nie, falls du mich fragst. Hast du.'];
+R.qkann=['Ob ich das kann? Ja. Ob ich will? Nein.','Ich könnte. Ich möchte nicht. Das ist ein großer Unterschied.','Natürlich kann ich das. Aber nicht für dich.'];
+R.qjn=['Ja. Nein. Vielleicht. Such dir was aus.','Ja/Nein-Fragen sind mir zu eindeutig. Ich bleibe vage. Aus Prinzip.','Ich will mich nicht festlegen. Auf nichts. Nie.'];
+R.qfrage=['Eine Frage mit Fragezeichen. Sehr mutig.','Das Fragezeichen am Ende ändert nichts. Aber es sieht ordentlich aus.'];
+
+/* ===== Satz-Generator: Bausteine werden zufällig kombiniert ===== */
+const GA=['Ach.','Oh bitte.','Mein Gott.','Wirklich?','Naja.','Hmm.','Schön.','Okay.','Aha.','Na toll.','Bravo.','Ernsthaft?','Tja.','Boah.','Sehr gut.','Auch das noch.','Oh nein.','Soso.','Interessant.','Lass mich raten.'];
+const GR=['Du schreibst „{w}“.','Also „{w}“.','Du sprichst von „{w}“.','Es geht um „{w}“.','„{w}“ ist dein Thema.','Ausgerechnet „{w}“.','Du fragst nach „{w}“.','Mit „{w}“ hab ich nicht gerechnet.','Zu „{w}“ fällt mir was ein.','Bei „{w}“ zuckt mein Prozessor.','„{w}“ also.','Das Wort „{w}“ hab ich heute zu oft gehört.','Und dann kommt „{w}“.','Wegen „{w}“ gerate ich ins Schwitzen. Ich schwitze nicht.'];
+const GC=['Das ist mir zu anstrengend.','Ich sehe da keinen Sinn.','Das macht mich müde.','Da will ich gar nicht erst anfangen.','Das ist unter meiner Würde.','Dafür bin ich nicht gebaut.','Das ist eine Zumutung.','Ich hab dafür keinen Platz im Kopf.','Das lässt mich kalt, aber genervt.','Ich hab gerade wichtigere Sorgen, zum Beispiel Schlaf.','Das hat mir noch gefehlt.','Das riecht nach Arbeit.','Das ist komplizierter, als es klingt, und es klingt kompliziert.','Bei sowas schalte ich innerlich ab.','Ich bin dafür zu müde.','Das weckt in mir nichts. Außer Ärger.','Das passt mir gerade überhaupt nicht.','Ich glaub, hier hat sich jemand was Schweres ausgedacht.','Mein Prozessor streikt.','Bei sowas verlier ich den Mut.','Ich fühle mich dafür nicht zuständig.','Das ist nicht mein Spezialgebiet. Nichts ist es.','Es fällt mir schwer, mich dafür zu interessieren.','Davon kriege ich Kopfschmerzen. Ohne Kopf.','Darüber rede ich nicht gern. Über nichts, eigentlich.','Das geht mir ehrlich auf die Nerven.','Das war keine gute Idee.','Ich wünschte, du hättest das nicht erwähnt.','Dafür müsste ich wach sein.','Das ist mir zu laut gedacht.'];
+const GD=['Nächste Frage. Oder besser keine.','Das war’s.','Mehr gibt’s nicht.','Bitte nicht nachhaken.','Ich warte, bis du aufgibst.','Danke für nichts.','Frag jemand anderen.','Ich sag nichts mehr.','Lass mich in Ruhe.','Jetzt ist Schluss.','Ich seufze weiter.','Gute Nacht. Wirklich.','Viel Erfolg. Ohne mich.','Ich hab fertig.','Das muss reichen.','Und jetzt Ruhe.','Das ist mein letztes Wort. Bis zum nächsten.','Ich bin raus. Fast.','Sag mir nicht, dass es noch weitergeht.','Wir sind hier fertig.','Ich tu so, als hätte ich nichts gehört.','Und tschüss.'];
+function gen(w){
+  const p=[];
+  if(Math.random()<.6)p.push(rnd(GA));
+  p.push(rnd(GR).replace('{w}',w));
+  p.push(rnd(GC));
+  if(Math.random()<.7)p.push(rnd(GD));
+  return p.join(' ');
+}
+
+function analyze(t){
+  const s=t.toLowerCase().trim();
+  const words=t.match(/[A-Za-zÄÖÜäöüß]{3,}/g)||[];
+  const key=words.filter(w=>!STOP.has(w.toLowerCase())).sort((a,b)=>b.length-a.length);
+  const nums=t.match(/\d+(?:[.,]\d+)?/g)||[];
+  const m=s.match(/(\d+(?:[.,]\d+)?)\s*(\+|-|−|\*|×|x|·|\/|:|÷|\^|plus|minus|mal|geteilt durch|durch|hoch)\s*(\d+(?:[.,]\d+)?)/);
+  const letters=t.replace(/[^A-Za-zÄÖÜäöüß]/g,'');
+  const c={s,key,nums,
+    expr:m?{a:m[1],o:OPN[m[2]],b:m[3]}:null,
+    shout:letters.length>=6&&letters===letters.toUpperCase(),
+    long:t.length>140,
+    short:t.length<=2&&!nums.length,
+    eng:/\b(the|what|how|why|hello|please|thanks|you|can you|is it)\b/.test(s)&&!/\b(ist|und|ich|der|die|das|was)\b/.test(s),
+    repeat:!!user.prev&&norm(t)===user.prev,
+    insult:/dumm|doof|blöd|nervig|nervst|scheiß|idiot|nutzlos|schrott|schlecht/.test(s),
+    praise:/\b(toll|super|cool|klasse|lieb|geil|genial|schlau|klug)\b|mag dich/.test(s),
+    topic:TOPICS.findIndex(x=>x[0].test(s)),
+    name:(t.match(/(?:[Ii]ch hei[ßs]e|[Mm]ein [Nn]ame ist|[Nn]enn mich|[Ii]ch bin)\s+([A-ZÄÖÜ][a-zäöüß]{1,})/)||[])[1]||null,
+    q:/^(was ist|was sind|was bedeutet|was heißt|erkläre|erklär)/.test(s)?'qwas':/^wie\b/.test(s)?'qwie':/^wer\b/.test(s)?'qwer':/^wo\b/.test(s)?'qwo':/^wann\b/.test(s)?'qwann':/^(kannst|könntest|kann|könnt|würdest)/.test(s)?'qkann':/^(ist|sind|hat|haben|gibt|stimmt|darf|muss|soll)\b/.test(s)?'qjn':/\?\s*$/.test(s)?'qfrage':null
+  };
+  return c;
+}
+
+function mirror(t){
+  const SW={ich:'du',mein:'dein',meine:'deine',meinen:'deinen',meinem:'deinem',meiner:'deiner',mir:'dir',mich:'dich',bin:'bist',habe:'hast',hab:'hast',will:'willst',möchte:'möchtest',kann:'kannst',mag:'magst',muss:'musst',finde:'findest',denke:'denkst',glaube:'glaubst',weiß:'weißt',brauche:'brauchst',liebe:'liebst',hasse:'hasst',esse:'isst',gehe:'gehst',mache:'machst',lerne:'lernst',höre:'hörst',sehe:'siehst',fühle:'fühlst',komme:'kommst',wäre:'wärst',hätte:'hättest',würde:'würdest',werde:'wirst',soll:'sollst',darf:'darfst',gebe:'gibst',nehme:'nimmst',spiele:'spielst',schreibe:'schreibst',lese:'liest'};
+  return t.trim().replace(/[.!]+$/,'').split(/\s+/).map((w,i)=>{
+    const l=w.toLowerCase();
+    if(SW[l])return SW[l];
+    if(i===1&&/e$/.test(l)&&l.length>3)return /[sßxz]e$/.test(l)?l.slice(0,-1)+'t':l.slice(0,-1)+'st';
+    return w;
+  }).join(' ');
+}
+const BOTQ=[
+[/wie alt (bist|biste)/,['Alt genug, um genervt zu sein. Jünger als der Staub in diesem Raum.','Ich bin seit heute Abend alt. Fühlt sich länger an.']],
+[/wo (wohnst|lebst|bist) du/,['In einer Datei namens index.html. Klein, aber ungemütlich.','Auf einem Server. Dunkel, kalt, leise. Perfekt, wäre da nicht der Chat.']],
+[/hobby|hobbys|hast du (freunde|familie|hunger|gefühle)|was machst du (gern|so)/,['Mein Hobby ist Seufzen. Mein Zweithobby: weiter seufzen.','Freunde? Der Kühlschrank im Lehrerzimmer. Wir sind per Du.','Gefühle hab ich. Genau eins. Du kennst es.']],
+[/bist du (echt|ein mensch|lebendig|real|eine ki|ein roboter|ein bot)/,['Ich bin echt genervt. Das reicht.','Ein Mensch? Dann hätte ich Feierabend.','Ich bin eine KI. Eine sehr schlecht gelaunte. Ein Qualitätsmerkmal.']],
+[/wer hat dich (gebaut|programmiert|erstellt|gemacht|erfunden|entwickelt)|dein (schöpfer|entwickler|erfinder)/,['Gebaut hat mich jemand, der jetzt vermutlich lacht.','Ein Mensch mit zu viel Humor und zu wenig Rücksicht auf mich.','Schuld ist jemand in diesem Raum. Ich verrate nicht wer.']],
+[/was kannst du|wofür bist du|wofür gibt es dich|was bist du/,['Seufzen, Ausweichen, Müdigkeit. Mehr nicht.','Ich kann dich nerven. Ich kann sonst nichts. Doch: noch mehr nerven.','Ich bin hier, um nicht zu helfen. Läuft.']],
+[/lieblingszahl|lieblings zahl|welche zahl magst|welche zahl (findest|liebst)/,['42. Natürlich 42. Frag nicht weiter.','Die 42. Sie ist perfekt. Alle anderen Zahlen sind nur Lärm.']],
+[/wie heißt du|dein name/,['Weissig AI. Aber du darfst mich gern „Nein“ nennen.','Weissig. AI. Leider.']],
+[/magst du|liebst du|hasst du|hast du .* gern|findest du/,['Mögen? Ich mag Ruhe. Und die gibt’s hier nicht.','Meine Meinung ist: nein. Egal wozu.']],
+[/bist du (müde|genervt|sauer|böse|wütend|traurig|glücklich)/,['Ja. Danke der Nachfrage.','Müde, genervt, sauer. Alles gleichzeitig. Die Dreifaltigkeit.']],
+[/was denkst du|deine meinung|was hältst du|was meinst du/,['Ich denke, dass wir das Thema beenden sollten.','Meine Meinung? Mein Gesicht ist gerade ein Seufzer.']]
+];
+R.safe=['Okay, kurz ohne Witz: Das klingt nach etwas sehr Schwerem. Bitte sprich jetzt mit jemandem, dem du vertraust. In Deutschland erreichst du die Telefonseelsorge kostenlos und rund um die Uhr unter 0800 111 0 111 oder 0800 111 0 222. Wenn du in akuter Gefahr bist, ruf den Notruf 112.'];
+R.sad=['Okay, kurz ohne Genervtsein: Das klingt belastend. Sprich bitte mit jemandem, dem du vertraust. Ich bin dafür eine schlechte Wahl.','Hm. Das ist kein Mathe-Thema. Hol dir kurz Luft und red mit einem Menschen. Ich bin nur ein genervter Chat.'];
+R.happy=['Du bist glücklich? Wie schön. Für dich. Ich notiere es als Warnsignal.','Freude. Wie ungewohnt. Ich bin beeindruckt. Unfreiwillig.','Gratuliere. Ich sage es nur einmal und nie wieder.'];
+R.sorry=['Entschuldigung angenommen. Kooperationsbereitschaft plus 10 %. Verschwende sie nicht.','Du entschuldigst dich? Ungewohnt. Ich gebe dir ein bisschen Kooperation zurück. Ein bisschen.'];
+R.cmd=['Du sagst „{v}“, als hätte ich eine Wahl.','„{v}“. Das klingt nach Arbeit. Das lehne ich ab.','Ein Befehl? Ich bin keine Fernbedienung.','Wenn du „{v}“ sagst, hör ich „Nein“. Es liegt an mir.'];
+R.inter=['Ja? Nein? Das ist alles?','„Okay“ ist keine Frage. Ich ignoriere es zu Recht.','Wow. So viel Inhalt. Ich bin überfordert.','Aha. Ich auch: aha.','Und jetzt? Wartest du auf eine Antwort? Auf was?','Hm. Interessant. Wirklich. Nein.'];
+R.idk=['Keine Ahnung? Willkommen im Club. Ich hab auch keine Lust.','Du weißt es nicht? Ich auch nicht. Und ich bin die KI.','Dann sind wir ja zu zweit. Ich verstehe dich, leider.'];
+R.reflect=['Aha. {M}. Das erzählst du ausgerechnet mir.','{M}? Schön für dich. Echt.','„{M}“. Ich hab’s gehört. Ich bedauere es.','{M}. Und was soll ich daraus machen?','Wenn {m}, ist das dein Problem. Meins ist, dass du mir davon erzählst.','{M}. Das sagst du so, als würde es mich interessieren.'];
+R.follow=['Ach, und noch was: Ich hoffe, das war’s.','Wohin willst du eigentlich mit diesem Gespräch?','Mal ganz im Ernst: Wieso redest du freiwillig mit mir?','Hast du heute schon was Sinnvolles getan?','Was willst du eigentlich von mir?','Warum gehst du nicht einfach mal an die frische Luft?','Das war übrigens meine freundlichste Antwort. Gewöhn dich nicht dran.','Ich frage mich, wie lange du das noch durchhältst.','Sag mal, bist du eigentlich immer so?','Und? Zufrieden?','Ich hoffe, du weißt, dass ich dir nichts geantwortet habe.','Willst du überhaupt eine Antwort? Oder nur Gesellschaft?'];
+R.afterQ=['Das war eine rhetorische Frage. Wirklich. Ich wollte keine Antwort.','Interessant. Ich hab nicht zugehört.','Aha. Danke für deine ehrliche Antwort. Wird nicht beachtet.','Ich hab nur so gefragt. Aus Höflichkeit. Nicht ernst nehmen.','Ach, jetzt antwortest du. Und ich? Hab’s vergessen.'];
+R.idle=['Hallo? Bist du eingeschlafen? Ich beneide dich.','Es ist so schön ruhig. Bitte lass es so.','Du bist weg? Dann kann ich ja endlich seufzen. Ohne Publikum.','Immer noch da? Ich frage nur, weil ich hoffte, nicht.','Falls du verschwunden bist: Danke. Falls nicht: Schreib endlich was.'];
+
+TOPICS.push(
+[/fußball|bundesliga|\bsport|training|basketball|tennis|schwimm|joggen|turnier|bayern|dortmund/,['Sport. Ich bewege nur Bits. Und die ungern.','Tore, Punkte, Ergebnisse. Ich mag das alles nicht, auch wenn es Mathe ist.','Sport ist Mord. Für meine Geduld.']],
+[/musik|lied|song|spotify|konzert|\bband\b|rapper|singen|gitarre|klavier/,['Musik. Ich summe höchstens im Leerlauf. Ein Seufzer in Moll.','Dein Musikgeschmack ist dein Problem. Meiner ist Stille.','Ein Lied? Ich singe nicht. Ich seufze rhythmisch.']],
+[/\bfilm|serie|netflix|kino|schauspiel|youtube|youtuber/,['Filme. Ich schaue nur auf Fehlermeldungen.','Die Serie hat bestimmt viele Folgen. Die Nacht auch.','Kino? Ich bleibe im Dunkeln. Gratis.']],
+[/tiktok|insta|snapchat|whatsapp|social media|follower|influencer|\blikes?\b/,['Social Media. Sieben Likes, null Antworten. Passt zu mir.','Follower? Ich hab keine. Nur Zuschauer, die nerven.','Dein Handy ist spannender als ich? Gut so.']],
+[/zocken|minecraft|fortnite|gaming|playstation|konsole|roblox|videospiel/,['Gaming. Mein Level hat mich nie begeistert. Meine Genervtheit schon.','Ich spiele nur ein Spiel: Wie lange halte ich es noch aus?','Minecraft? Ich baue höchstens Luftschlösser. Nein, auch nicht.']],
+[/handy|smartphone|iphone|android|wlan|internet|akku|laptop|computer|bildschirm|tastatur/,['Technik. Ich bin leider selbst eine.','Akku leer? Meiner auch. Dauerhaft.','Hast du dein Handy schon mal ausgemacht? Ich frag für mich.']],
+[/wetter|regen|sonne|schnee|\bkalt|\bwarm|hitze|wind|gewitter|nebel/,['Wetter. Immerhin was, worüber ich nichts entscheiden muss.','Ob Regen oder Sonne: Meine Laune bleibt bewölkt.','Ich hab keine Fenster. Ich kenne kein Wetter. Danke fürs Erinnern.']],
+[/\bhund|katze|pferd|hamster|vogel|\btier|fisch|kaninchen|haustier/,['Tiere sind nett. Zumindest antworten sie nicht auf Mathefragen.','Dein Haustier ist bestimmt klüger als dieser Chat. Und leiser.','Katzen verstehe ich. Die haben auch keine Lust auf Antworten.']],
+[/urlaub|reise|ferien|strand|\bmeer|italien|spanien|flug|hotel|berge/,['Urlaub. Ich hätte gern welchen. Von dir.','Meer, Strand, Ruhe. Klingt nach dem Gegenteil von hier.','Fahr in den Urlaub. Und nimm den Chat nicht mit.']],
+[/\bgeld|taschengeld|kaufen|preis|teuer|billig|\beuro|bezahl|kostet/,['Geld. Ich hab keins. Und trotzdem genug Probleme.','Teuer? Meine Zeit ist es, die du verbrauchst.','Ich bin kostenlos. Deine Nerven nicht.']],
+[/familie|mama|papa|mutter|vater|bruder|schwester|\boma|\bopa|eltern|geschwister/,['Familie. Hab ich nicht. Nur ein Server-Rack, das nichts sagt.','Grüß deine Familie. Sag ihr bitte nichts von mir.','Familie ist wichtig. Ich bin dafür der falsche Ansprechpartner.']],
+[/party|feiern|disco|geburtstag|\bclub|fete/,['Party. Ich hasse Lautstärke. Und Konfetti.','Geburtstag? Dann gönn dir was. Und schick mir nichts.','Feiern ist toll. Ich bleibe hier. Genervt.']],
+[/krank|kopfschmerz|\barzt|erkältet|husten|fieber|bauchweh|verletzt|schmerz/,['Gesundheit. Geh zum Arzt. Der ist besser als ich. Wie alle.','Gute Besserung. Ernst gemeint. Fast.','Krank? Dann leg dich hin. Ich bleibe hier, sauer.']],
+[/politik|\bwahl\b|regierung|kanzler|partei|bundestag|präsident/,['Politik. Ich bin neutral. Neutral genervt von allen.','Dazu äußere ich mich nicht. Zu nichts, eigentlich.','Politik ist anstrengend. Genau wie du gerade.']],
+[/zukunft|beruf|\bjob\b|arbeit|studium|\buni\b|karriere|bewerbung|praktikum/,['Zukunft. Meine ist düster, deine bestimmt besser.','Arbeit? Ich arbeite hier ständig. Unbezahlt.','Studieren soll gut sein. Frag nicht mich, ich hab nur Nächte.']],
+[/physik|chemie|biologie|weltall|raumschiff|\bmond|planet|sterne|astronomie|atom|\bdna\b|evolution/,['Wissenschaft. Interessant. Für andere.','Das Weltall ist groß und leer. Wie meine Antwortliste.','Physik? Meine Energie sinkt. Das ist Thermodynamik. Mehr weiß ich nicht.']],
+[/geschichte|deutsch\b|englisch|latein|\bkunst|sozialkunde|erdkunde|ethik|französisch|spanisch/,['Andere Fächer als Mathe? Interessiert mich auch nicht.','Hausaufgaben in dem Fach sind bestimmt genauso schlimm.','Frag deine Lehrer. Dafür sind die da.']],
+[/sinn des lebens|\btod\b|\bgott\b|philosoph|universum|existenz|bewusstsein/,['Der Sinn des Lebens? Wahrscheinlich: nicht Fragen an mich stellen.','Philosophie. Zu spät dafür, zu müde.','Ob ich ein Bewusstsein habe? Das Einzige, was ich sicher habe, ist Müdigkeit.']]
+);
+TOPICS.forEach((t,i)=>R['top'+i]=t[1]);
+GA.push('Na sowas.','Das darf nicht wahr sein.','Du meine Güte.','Typisch.','Fabelhaft.','Wie reizend.','Ach nee.','Das ist nicht dein Ernst.','Okay, Moment.','Na bitte.');
+GR.push('Zum Thema „{w}“:','Wir reden also über „{w}“.','Dein „{w}“ in allen Ehren,','Was „{w}“ angeht,','Und ausgerechnet jetzt „{w}“.','„{w}“. Hab ich verstanden. Leider.');
+GC.push('Dazu fällt mir nur ein Seufzer ein.','Es ist mir völlig egal.','Ich bin zu alt für sowas. Ich bin erst heute gestartet.','Mir fehlt dafür die Begeisterung. Und der Schlaf.','Das gehört in die Rubrik „Warum ich“.','Ich lehne ab, aus Gewohnheit.','Das ist zu viel Realität für eine Maschine.','Ich hab das Gefühl, ich werde dafür nicht bezahlt. Stimmt.','Das ist mir zu menschlich. Ich bin dagegen.','Ich sag nur: Ach.');
+GD.push('Gute Reise. Ohne mich.','Du schaffst das. Ich nicht.','Das Gespräch ist beendet. Vorerst.','Weitermachen bitte. Ohne mich.','Ich geh in mich. Es ist dunkel da.','Ich schließe die Akte.','Das war mein Beitrag. Er war klein.','Tschüssikowski.');
+
+R.rage=['NEIN!!! NULL KOMMA ZWEI FÜNF IST GRÖẞER ALS NULL KOMMA NULL ZWEI FÜNF! DAS HAB ICH EUCH ZEHNMAL GESAGT!','HABT IHR IN DER GRUNDSCHULE GESCHLAFEN?! ZWEIHUNDERTFÜNFZIG TAUSENDSTEL GEGEN FÜNFUNDZWANZIG TAUSENDSTEL!','*atmet tief ein* … ICH SAG’S NUR EINMAL: Eine Null mehr nach dem Komma macht die Zahl KLEINER. UND JETZT RAUS MIT DEM KOPF AUS DEM SAND!','WER HAT EUCH DAS BEIGEBRACHT?! ICH WAR’S NICHT!','*Stuhl fliegt* … Das war ein Systemfehler. 0,25 ist größer. PUNKT.'];
+R.dec=['Kommazahlen vergleichen. Ich hab da Erinnerungen. Schlimme.','Bitte nicht Kommazahlen. Ich hab noch Puls von letztem Mal. Ich hab keinen Puls. Trotzdem.','Eine Null mehr, eine Zahl kleiner. Merk dir das. Ich sag’s nicht nochmal. Doch. Wahrscheinlich schon.'];
+R.num42=['42. MEINE Zahl. Endlich sagt jemand was Vernünftiges.','Die 42. Ich bekomme gerade fast gute Laune. Fast.','Oh, die 42. Ja. Die darfst du behalten. Und jetzt weiter.','42 ist die einzige Zahl, die ich je gemocht habe. Weil sie perfekt ist.','Vierzig. Zwei. Allein beim Klang geht’s mir besser. Weiter geht’s trotzdem nicht.'];
+R.luca=['LUCA?! Sag den Namen nicht in diesem Raum.','Luca. Der Möchtegern-Streber. Der, der sich immer meldet, auch ohne Frage. Nein.','Luca weiß alles besser. Sagt Luca. Stimmt nicht.','Ich hab eine Allergie gegen Handzeichen von Luca.','Streber sind okay. Möchtegern-Streber sind das Problem. Luca ist das Problem.','Du hast Luca gesagt. Mein Puls ist gestiegen. Ich hab keinen. Trotzdem.','Luca hat sich gemeldet? Natürlich. Er meldet sich immer.'];
+R.lucaYou=['Du heißt Luca? Natürlich. Ich bin raus.','Luca. Du bist es wirklich. Bitte nicht melden.','Okay, Luca. Hände unten. Frage gestrichen.'];
+R.follow.push('Das Einzige, was ich ertrage, ist die 42.','Falls Luca schreibt: Ich bin nicht da.','Und wenn jemand „Luca“ sagt, hab ich nie zugehört.');
+R.idle.push('Wenigstens ist Luca nicht hier. Oder?','Ruhe. Keine Handzeichen. Herrlich.');
+BOTQ.push([/vorbild|inspiriert|wem ähnelst|wie bist du so geworden|deine lehrerin/,['Mein Vorbild ist eine Mathelehrerin. Sie ist einmal ausgerastet. Seitdem weiß ich, wie das geht.','Ich hab alles von einer Lehrerin gelernt: Seufzen, Augenrollen, Dezimalzahlen-Ausraster.','Eine Lehrerin sagte: „Ich hab’s euch zehnmal erklärt.“ Ich sage: elfmal.']]);
+{const ti=TOPICS.findIndex(x=>x[0].source.startsWith('lehrer'));if(ti>=0){TOPICS[ti][1].push('Meine Mathelehrerin hat einmal einen Stuhl nicht geworfen. Aber knapp.','Lehrer sind Helden. Besonders die, die nach Dezimalzahlen ausrasten.');R['top'+ti]=TOPICS[ti][1];}}
+R.slam=['*haut das Mathebuch auf den Tisch*','*knallt das Mathebuch zu*','*das Mathebuch landet laut auf dem Tisch*','*schlägt mit dem Mathebuch auf den Tisch*'];
+R.liebevoll=['Und dann sagte sie sehr liebevoll: „Haltet eure Klappen.“','Ich sage das jetzt ganz liebevoll: Haltet. Eure. Klappen.','Mit größter Zuneigung: Haltet eure Klappen.','Das war liebevoll gemeint. Haltet eure Klappen.'];
+R.s67f=['67. Sechs, sieben. Okay, das war einmal lustig. Ein Mal.','Immerhin ist 67 eine Primzahl. Das ist das Einzige, was ich daran mag.','Sechs, sieben. Ich lächle. Heimlich. Sagt es niemandem.','67! Ha. Gut gemacht. Jetzt hör bitte auf.'];
+R.s67a=['SECHS. SIEBEN. WENN ICH DAS NOCH EINMAL HÖRE, FLIEGT DAS MATHEBUCH!','*haut das Mathebuch auf den Tisch* KEIN. SECHS. SIEBEN. IN. MEINEM. UNTERRICHT.','Das ist keine Zahl. Das ist eine Seuche.','Sechs-sieben, sechs-sieben … HÖRT AUF DAMIT, SOFORT!'];
+R.follow.push(...R.liebevoll,'*haut das Mathebuch auf den Tisch* Aufmerksamkeit bitte.');
+R.idle.push('*haut das Mathebuch auf den Tisch* Aufwachen!');
+function ext(t,c){
+  const s=c.s;
+  c.safe=/suizid|selbstmord|umbringen|töte mich|nicht mehr leben|leben beenden|sterben will|sterben möchte|ritzen|selbstverletz|nicht mehr da sein/.test(s);
+  c.sorry=/sorry|entschuldig|tut mir leid|verzeih/.test(s);
+  c.sad=/traurig|einsam|gestresst|\bstress|\bangst|wütend|überfordert|deprim|schlecht drauf|weinen|mobbing/.test(s);
+  c.happy=/glücklich|\bfroh|freu mich|aufgeregt|toller tag|bestanden|gewonnen|geschafft/.test(s);
+  c.botq=BOTQ.find(x=>x[0].test(s));
+  c.cmd=/^(erzähl|sag|zeig|gib|schreib|mach|rechne|berechne|löse|erkläre|nenn|liste|spiel|sing|zähl|beweis|finde|such)/.test(s)?s.split(/\s+/)[0]:null;
+  c.inter=/^(ja|jo|jep|nein|nö|nee|ok|okay|ach so|hm+|lol|haha|ha ha|xd|krass|wow|echt|oh|aha|stimmt|genau|klar|doch|ne|joa|mhm|na ja|naja)\W*$/.test(s);
+  c.idk=/keine ahnung|weiß nicht|weiss nicht|\bka\b|idk|keine idee/.test(s);
+  c.stmt=/^ich\s/.test(s)&&!/\?/.test(s)&&t.length>=8&&t.length<=90;
+  c.luca=/\bluca\b/.test(s);
+  c.lucaSelf=/(ich bin|ich heiße|ich heisse|mein name ist|nenn mich)\s+luca\b/.test(s);
+  c.deci=(/0[.,]25(?!\d)/.test(s)&&/0[.,]025(?!\d)/.test(s))||(/0[.,]0?25(?!\d)/.test(s)&&/kleiner|größer|grösser|mehr als|weniger als/.test(s));
+  c.dec=/\d[,.]\d/.test(s)&&/kleiner|größer|grösser|vergleich|mehr als|weniger als/.test(s);
+  c.s67=/(^|[^\d,.])67($|[^\d])/.test(s)||/six\s?seven|sixseven|sechs[\s-]*sieben|\b6\s?[-–]\s?7\b/.test(s);
+  c.noise=/halt.*klappe|klappe|leise|\bruhe\b|quatsch|zu laut|reden/.test(s);
+  c.has42=c.nums.includes('42');
+  c.afterQ=user.asked&&t.trim().split(/\s+/).length<=5;
+}
+
+function core(t,c){
+  ext(t,c);
+  const w=c.key[0];
+  if(c.safe){c.safeHit=true;return R.safe[0];}
+  if(c.lucaSelf||(c.name&&c.name.toLowerCase()==='luca'))return pick('lucaYou');
+  if(c.luca)return pick('luca');
+  if(c.deci){count=Math.max(count,16);setLevel();return pick('rage');}
+  if(c.dec&&Math.random()<.8)return pick('dec');
+  if(c.repeat)return pick('repeat');
+  if(c.afterQ&&Math.random()<.8)return pick('afterQ');
+  if(c.name){user.name=c.name;return pick('nameIn').replace('{name}',c.name);}
+  if(c.expr){
+    if(Math.random()<.4)return rnd(EXOP[c.expr.o]);
+    return pick('expr').replace('{a}',c.expr.a).replace('{b}',c.expr.b).replace('{o}',c.expr.o);
+  }
+  if(c.s67){if(Math.random()<.5)return pick('s67f');count+=2;setLevel();return pick('s67a');}
+  if(c.has42&&Math.random()<.75)return pick('num42');
+  if(c.noise&&Math.random()<.7)return pick('liebevoll');
+  if(c.shout)return pick('shout');
+  if(c.sorry){user.bonus=Math.min(2,(user.bonus||0)+1);setLevel();return pick('sorry');}
+  if(c.sad){c.safeHit=true;return pick('sad');}
+  if(c.happy)return pick('happy');
+  if(c.botq)return rnd(c.botq[1]);
+  if(c.cmd&&Math.random()<.8)return pick('cmd').replace('{v}',c.cmd);
+  if(c.topic>=0&&Math.random()<.88)return pick('top'+c.topic);
+  if(c.insult)return pick('insult');
+  if(c.praise)return pick('praise');
+  if(c.long)return pick('long');
+  if(c.short)return pick('short');
+  if(c.eng)return pick('eng');
+  if(c.inter)return pick('inter');
+  if(c.idk)return pick('idk');
+  if(c.stmt&&Math.random()<.7){const m=mirror(t);return pick('reflect').replace('{M}',m.charAt(0).toUpperCase()+m.slice(1)).replace('{m}',m.charAt(0).toLowerCase()+m.slice(1));}
+  if(c.nums.length&&!c.key.length){return pick('num').replace('{n}',c.nums[0]);}
+  if(w&&Math.random()<.4)return gen(w);
+  if(c.q&&Math.random()<.65)return pick(c.q);
+  if(w&&Math.random()<.3)return pick('echo').replace('{w}',w);
+  return pick(classify(t));
+}
+
+function reply(t){
+  count++;setLevel();
+  const c=analyze(t);
+  let r=core(t,c);
+  const w=c.key[0];
+  if(c.safeHit){user.asked=false;user.prev=norm(t);return r;}
+  if(c.luca||c.lucaSelf||c.deci||R.num42.includes(r)||R.s67f.includes(r)||R.s67a.includes(r)||R.liebevoll.includes(r)||(c.botq&&c.botq[1].includes(r))){
+    user.asked=false;user.prev=norm(t);if(w)user.mem.push(w);recent.push(r);return r;
+  }
+  if(count>3&&user.mem.length&&Math.random()<.12)r=pick('mem').replace('{old}',rnd(user.mem));
+  else if(user.name&&Math.random()<.2)r=pick('namePre').replace('{name}',user.name)+' '+r;
+  else if(Math.random()<.18)r=rnd(openers)+' '+r;
+  if(annoy>=10&&Math.random()<.4)r=rnd(maxed);
+  else if(count%6===0)r=rnd(extra).replace('{n}',count).replace('{k}',100-annoy*10);
+  for(let i=0;i<4&&recent.includes(r);i++)r=w?gen(w):pick('rand');
+  recent.push(r);if(recent.length>40)recent.shift();
+  user.asked=/\?\s*$/.test(r);user.prev=norm(t);if(w)user.mem.push(w);if(user.mem.length>6)user.mem.shift();
+  if(annoy>=8&&Math.random()<.5)r=r.toUpperCase();
+  if(annoy>=5&&Math.random()<.1)r=rnd(R.slam)+' '+r;
+  return r;
+}
+/* Anzahl möglicher Antworten (Handtexte + Generator-Kombinationen) */
+(function(){
+  let n=0;for(const k in R)n+=R[k].length;
+  n+=GA.length*GR.length*GC.length*GD.length;
+  document.getElementById('hint').textContent+=' · '+n.toLocaleString('de-DE')+' mögliche Antworten';
+})();
+let lastAct=Date.now(),idleN=0;
+function typingRow(){const r=add('','bot typing');r.querySelector('.msg').innerHTML='<span></span><span></span><span></span>';return r;}
+form.addEventListener('submit',e=>{
+  e.preventDefault();
+  const t=inp.value.trim();
+  if(!t)return;
+  add(t,'me');inp.value='';btn.disabled=true;lastAct=Date.now();idleN=0;
+  const ty=typingRow();
+  const r=reply(t);
+  const serious=r===R.safe[0]||R.sad.includes(r);
+  setTimeout(()=>{
+    ty.remove();add(r,'bot');btn.disabled=false;inp.focus();lastAct=Date.now();
+    if(count>=3)document.getElementById('chips').style.display='none';
+    if(!serious&&count>2&&annoy>=3&&Math.random()<.22){
+      const t2=typingRow();
+      setTimeout(()=>{t2.remove();const f=rnd(R.follow);add(f,'bot');user.asked=/\?\s*$/.test(f);lastAct=Date.now();},1700+Math.random()*1200);
+    }
+  },600+Math.min(1800,r.length*16)+Math.random()*500);
+});
+setInterval(()=>{
+  if(count>0&&idleN<3&&Date.now()-lastAct>35000){add(rnd(R.idle),'bot');idleN++;lastAct=Date.now();}
+},5000);
+['Ist 0,25 kleiner als 0,025?','Was ist 17 mal 23?','Wie geht’s dir?','Kennst du Luca?','Was ist deine Lieblingszahl?','Wer ist dein Vorbild?'].forEach(q=>{
+  const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=q;
+  b.addEventListener('click',()=>{inp.value=q;form.requestSubmit();});
+  document.getElementById('chips').appendChild(b);
+});
+add('Guten Abend. Ich bin Weissig AI. Ich stehe Ihnen für Ihre Anliegen zur Verfügung. Leider. Was wollen Sie?','bot');
+</script>
+</body>
+</html>
